@@ -12,11 +12,25 @@ class QueueController extends ChangeNotifier {
   }
 
   Future<void> createQueue(String name,
-    {OrderMode orderMode = OrderMode.preferred, String? description}) async {
-  final queue = Queue(name: name, orderModeIndex: orderMode.index, description: description);
-  await _db.insertQueue(queue);
-  loadQueues();
-}
+      {OrderMode orderMode = OrderMode.preferred, String? description}) async {
+    final queue = Queue(
+        name: name,
+        orderModeIndex: orderMode.index,
+        description: description);
+    await _db.insertQueue(queue);
+    loadQueues();
+  }
+
+  Future<void> editQueue(Queue queue,
+      {required String name,
+      String? description,
+      required OrderMode orderMode}) async {
+    queue.name = name;
+    queue.description = description;
+    queue.orderMode = orderMode;
+    await _db.updateQueue(queue);
+    loadQueues();
+  }
 
   Future<void> toggleArchive(Queue queue) async {
     queue.isArchived = !queue.isArchived;

@@ -50,8 +50,17 @@ class TaskController extends ChangeNotifier {
     loadTasksForQueue(queueId);
   }
 
-  Future<void> updateTask(Task task) async {
-    await _db.updateTask(task);
-    loadTasksForQueue(task.queueId);
+  // Mutates the original object directly so Hive's save() works correctly
+  Future<void> updateTask(Task original,
+      {String? title, String? description, String? dueDate, bool clearDueDate = false}) async {
+    if (title != null) original.title = title;
+    if (description != null) original.description = description;
+    if (clearDueDate) {
+      original.dueDate = null;
+    } else if (dueDate != null) {
+      original.dueDate = dueDate;
+    }
+    await _db.updateTask(original);
+    loadTasksForQueue(original.queueId);
   }
 }

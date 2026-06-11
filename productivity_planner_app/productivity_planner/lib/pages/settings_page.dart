@@ -14,22 +14,17 @@ class SettingsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Settings',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            title: const Text('Show completed tasks by default'),
-            value: settings.showCompletedByDefault,
-            onChanged: (v) => settings.setShowCompleted(v),
-          ),
-          SwitchListTile(
-            title: const Text('Show archived items by default'),
-            value: settings.showArchivedByDefault,
-            onChanged: (v) => settings.setShowArchived(v),
-          ),
+          Text('Settings',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: settings.textColor)),
           const SizedBox(height: 24),
-          const Text('Theme',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Theme',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: settings.textColor)),
           const SizedBox(height: 12),
           _ColorPickerRow(
             label: 'Primary color',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/task_controller.dart';
 import '../controllers/queue_controller.dart';
+import '../controllers/settings_controller.dart';
 import '../models/queue_model.dart';
 import '../models/task_model.dart';
 
@@ -65,7 +66,7 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: DateTime.now(),
-                          firstDate: DateTime.now(),
+                          firstDate: DateTime(2000),
                           lastDate: DateTime(2100),
                         );
                         if (picked != null) {
@@ -187,24 +188,23 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
-                final title = titleController.text.trim();
-                if (title.isNotEmpty) {
-                  final updated = task.copyWith(
-                    title: title,
-                    description: descController.text.trim().isEmpty
-                        ? null
-                        : descController.text.trim(),
-                    dueDate: selectedDate == null
-                        ? null
-                        : _formatDate(selectedDate!),
-                  );
-                  context.read<TaskController>().updateTask(updated);
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Save'),
-            ),
+  onPressed: () {
+    final title = titleController.text.trim();
+    if (title.isNotEmpty) {
+      context.read<TaskController>().updateTask(
+        task,
+        title: title,
+        description: descController.text.trim().isEmpty
+            ? null
+            : descController.text.trim(),
+        dueDate: selectedDate != null ? _formatDate(selectedDate!) : null,
+        clearDueDate: selectedDate == null && task.dueDate != null,
+      );
+      Navigator.pop(context);
+    }
+  },
+  child: const Text('Save'),
+),
           ],
         ),
       ),
@@ -233,10 +233,12 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
   Widget build(BuildContext context) {
     final taskController = context.watch<TaskController>();
     final queueController = context.read<QueueController>();
+    final settings = context.watch<SettingsController>();
     final tasks = _sortedTasks(taskController.tasks);
     final queue = widget.queue;
 
     return Scaffold(
+      backgroundColor: settings.backgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(queue.name),
@@ -244,18 +246,17 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
-                case 'complete':
-                  queueController.toggleComplete(queue);
-                  break;
                 case 'archive':
                   queueController.toggleArchive(queue);
                   Navigator.pop(context);
                   break;
                 case 'preferred':
                   queueController.setOrderMode(queue, OrderMode.preferred);
+                  setState(() {});
                   break;
                 case 'dueDate':
                   queueController.setOrderMode(queue, OrderMode.dueDate);
+                  setState(() {});
                   break;
                 case 'showArchived':
                   setState(() => _showArchived = !_showArchived);
@@ -265,84 +266,124 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
               }
             },
             itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'complete',
-                child: Text(
-                    queue.isComplete ? 'Mark incomplete' : 'Mark complete'),
-              ),
-              PopupMenuItem(
-                value: 'archive',
-                child: Text(
-                    queue.isArchived ? 'Unarchive queue' : 'Archive queue'),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'preferred',
-                child: Row(children: [
-                  Icon(
-                      queue.orderMode == OrderMode.preferred
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      size: 18),
-                  const SizedBox(width: 8),
-                  const Text('Preferred order'),
-                ]),
-              ),
-              PopupMenuItem(
-                value: 'dueDate',
-                child: Row(children: [
-                  Icon(
-                      queue.orderMode == OrderMode.dueDate
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      size: 18),
-                  const SizedBox(width: 8),
-                  const Text('Due date order'),
-                ]),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'showArchived',
-                child: Text(_showArchived
-                    ? 'Hide archived tasks'
-                    : 'Show archived tasks'),
-              ),
-            ],
+  PopupMenuItem(
+    value: 'archive',
+    child: Text(
+        queue.isArchived ? 'Unarchive queue' : 'Archive queue'),
+  ),
+  const PopupMenuDivider(),
+  PopupMenuItem(
+    value: 'preferred',
+    child: Row(children: [
+      Icon(
+          queue.orderMode == OrderMode.preferred
+              ? Icons.radio_button_checked
+              : Icons.radio_button_off,
+          size: 18),
+      const SizedBox(width: 8),
+      const Text('Preferred order'),
+    ]),
+  ),
+  PopupMenuItem(
+    value: 'dueDate',
+    child: Row(children: [
+      Icon(
+          queue.orderMode == OrderMode.dueDate
+              ? Icons.radio_button_checked
+              : Icons.radio_button_off,
+          size: 18),
+      const SizedBox(width: 8),
+      const Text('Due date order'),
+    ]),
+  ),
+  const PopupMenuDivider(),
+  PopupMenuItem(
+    value: 'showArchived',
+    child: Text(_showArchived
+        ? 'Hide archived tasks'
+        : 'Show archived tasks'),
+  ),
+],
           ),
         ],
       ),
-      body: tasks.isEmpty
-          ? const Center(child: Text('No tasks yet. Tap + to add one.'))
-          : queue.orderMode == OrderMode.preferred
-              ? ReorderableListView.builder(
-                  itemCount: tasks.length,
-                  onReorder: (oldIndex, newIndex) {
-                    if (newIndex > oldIndex) newIndex--;
-                    final reordered = List<Task>.from(tasks);
-                    final item = reordered.removeAt(oldIndex);
-                    reordered.insert(newIndex, item);
-                    taskController.reorderTasks(reordered);
-                  },
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    return _TaskTile(
-                      key: ValueKey(task.id),
-                      task: task,
-                      onEdit: () => _showEditTaskDialog(task),
-                    );
-                  },
-                )
-              : ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    return _TaskTile(
-                      key: ValueKey(task.id),
-                      task: task,
-                      onEdit: () => _showEditTaskDialog(task),
-                    );
-                  },
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            color: Theme.of(context).colorScheme.surfaceVariant,
+            child: Row(
+              children: [
+                Icon(
+                  queue.orderMode == OrderMode.dueDate
+                      ? Icons.event
+                      : Icons.sort,
+                  size: 18,
                 ),
+                const SizedBox(width: 8),
+                Text(
+                  queue.orderMode == OrderMode.dueDate
+                      ? 'Sorted by due date'
+                      : 'Sorted by preferred order',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    final next = queue.orderMode == OrderMode.preferred
+                        ? OrderMode.dueDate
+                        : OrderMode.preferred;
+                    queueController.setOrderMode(queue, next);
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.swap_vert, size: 18),
+                  label: Text(
+                    queue.orderMode == OrderMode.preferred
+                        ? 'Due date'
+                        : 'Preferred',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: tasks.isEmpty
+                ? const Center(child: Text('No tasks yet. Tap + to add one.'))
+                : queue.orderMode == OrderMode.preferred
+                    ? ReorderableListView.builder(
+                        itemCount: tasks.length,
+                        onReorder: (oldIndex, newIndex) {
+                          if (newIndex > oldIndex) newIndex--;
+                          final reordered = List<Task>.from(tasks);
+                          final item = reordered.removeAt(oldIndex);
+                          reordered.insert(newIndex, item);
+                          taskController.reorderTasks(reordered);
+                        },
+                        itemBuilder: (context, index) {
+                          final task = tasks[index];
+                          return _TaskTile(
+                            key: ValueKey(task.id),
+                            task: task,
+                            onEdit: () => _showEditTaskDialog(task),
+                          );
+                        },
+                      )
+                    : ListView.builder(
+                        itemCount: tasks.length,
+                        itemBuilder: (context, index) {
+                          final task = tasks[index];
+                          return _TaskTile(
+                            key: ValueKey(task.id),
+                            task: task,
+                            onEdit: () => _showEditTaskDialog(task),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showCreateTaskDialog,
         child: const Icon(Icons.add),
@@ -360,6 +401,7 @@ class _TaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.read<TaskController>();
+    final textColor = context.watch<SettingsController>().textColor;
 
     return ListTile(
       leading: IconButton(
@@ -375,7 +417,7 @@ class _TaskTile extends StatelessWidget {
         task.title,
         style: TextStyle(
           decoration: task.isComplete ? TextDecoration.lineThrough : null,
-          color: task.isArchived ? Colors.grey : null,
+          color: task.isArchived ? textColor.withOpacity(0.4) : textColor,
         ),
       ),
       subtitle: Column(
@@ -383,10 +425,12 @@ class _TaskTile extends StatelessWidget {
         children: [
           if (task.description != null && task.description!.isNotEmpty)
             Text(task.description!,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                style: TextStyle(
+                    fontSize: 12, color: textColor.withOpacity(0.6))),
           if (task.dueDate != null)
             Text('Due: ${task.dueDate}',
-                style: const TextStyle(fontSize: 12)),
+                style: TextStyle(
+                    fontSize: 12, color: textColor.withOpacity(0.7))),
         ],
       ),
       trailing: PopupMenuButton<String>(

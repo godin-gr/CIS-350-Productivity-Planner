@@ -28,20 +28,22 @@ class MyApp extends StatelessWidget {
       child: Consumer<SettingsController>(
         builder: (context, settings, _) {
           return MaterialApp(
-            title: 'Productivity Planner',
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: settings.primaryColor,
-                background: settings.backgroundColor,
-              ),
-              scaffoldBackgroundColor: settings.backgroundColor,
-              textTheme: Typography.material2021().black.apply(
-                    bodyColor: settings.textColor,
-                    displayColor: settings.textColor,
-                  ),
-            ),
-            home: const MyHomePage(title: 'Productivity Planner'),
-          );
+  title: 'Productivity Planner',
+  theme: ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: settings.primaryColor,
+      background: settings.backgroundColor,
+    ),
+    scaffoldBackgroundColor: settings.backgroundColor,
+    textTheme: ThemeData().textTheme.apply(
+      bodyColor: settings.textColor,
+      displayColor: settings.textColor,
+      decorationColor: settings.textColor,
+    ),
+    iconTheme: IconThemeData(color: settings.textColor),
+  ),
+  home: const MyHomePage(title: 'Productivity Planner'),
+);
         },
       ),
     );
