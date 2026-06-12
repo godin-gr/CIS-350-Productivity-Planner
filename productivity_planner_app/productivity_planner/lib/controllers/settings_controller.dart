@@ -1,11 +1,30 @@
 import 'package:flutter/material.dart';
+import '../database/database_helper.dart';
+
+enum AppFontSize { verySmall, small, medium, large }
 
 class SettingsController extends ChangeNotifier {
-  bool showCompletedByDefault = false;
-  bool showArchivedByDefault = false;
+  final DatabaseHelper _db = DatabaseHelper();
+
   Color primaryColor = Colors.deepPurple;
-  Color backgroundColor = Colors.white;
-  Color textColor = Colors.black;
+  bool isDarkMode = false;
+  AppFontSize fontSize = AppFontSize.medium;
+
+  SettingsController() {
+    _load();
+  }
+
+  void _load() {
+    final colorValue =
+        _db.getSetting('primaryColor', defaultValue: Colors.deepPurple.value);
+    primaryColor = Color(colorValue as int);
+    isDarkMode = _db.getSetting('isDarkMode', defaultValue: false) as bool;
+    final fontIndex =
+        _db.getSetting('fontSize', defaultValue: AppFontSize.medium.index)
+            as int;
+    fontSize = AppFontSize.values[
+        fontIndex.clamp(0, AppFontSize.values.length - 1)];
+  }
 
   static const List<Color> primaryOptions = [
     Colors.deepPurple,
@@ -18,46 +37,54 @@ class SettingsController extends ChangeNotifier {
     Colors.pink,
   ];
 
-  static const List<Color> backgroundOptions = [
-    Colors.white,
-    Color(0xFFF5F5F5),
-    Color(0xFFFFF9C4),
-    Color(0xFFE8F5E9),
-    Color(0xFFE3F2FD),
-    Color(0xFF212121),
-  ];
+  // Background and text are derived from the light/dark mode so the rest of the
+  // app can keep referring to settings.backgroundColor / settings.textColor.
+  Color get backgroundColor =>
+      isDarkMode ? const Color(0xFF121212) : Colors.white;
+  Color get textColor => isDarkMode ? Colors.white : Colors.black;
 
-  static const List<Color> textOptions = [
-    Colors.black,
-    Color(0xFF212121),
-    Color(0xFF37474F),
-    Colors.indigo,
-    Colors.deepPurple,
-    Colors.white,
-  ];
+  // A multiplier applied to all text via MediaQuery's textScaler.
+  double get fontScale {
+    switch (fontSize) {
+      case AppFontSize.verySmall:
+        return 0.85;
+      case AppFontSize.small:
+        return 0.95;
+      case AppFontSize.medium:
+        return 1.0;
+      case AppFontSize.large:
+        return 1.15;
+    }
+  }
+
+  String get fontSizeLabel {
+    switch (fontSize) {
+      case AppFontSize.verySmall:
+        return 'Very small';
+      case AppFontSize.small:
+        return 'Small';
+      case AppFontSize.medium:
+        return 'Medium';
+      case AppFontSize.large:
+        return 'Large';
+    }
+  }
 
   void setPrimaryColor(Color c) {
     primaryColor = c;
+    _db.setSetting('primaryColor', c.value);
     notifyListeners();
   }
 
-  void setBackgroundColor(Color c) {
-    backgroundColor = c;
+  void setDarkMode(bool v) {
+    isDarkMode = v;
+    _db.setSetting('isDarkMode', v);
     notifyListeners();
   }
 
-  void setTextColor(Color c) {
-    textColor = c;
-    notifyListeners();
-  }
-
-  void setShowCompleted(bool v) {
-    showCompletedByDefault = v;
-    notifyListeners();
-  }
-
-  void setShowArchived(bool v) {
-    showArchivedByDefault = v;
+  void setFontSize(AppFontSize v) {
+    fontSize = v;
+    _db.setSetting('fontSize', v.index);
     notifyListeners();
   }
 }

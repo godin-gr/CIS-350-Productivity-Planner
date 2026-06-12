@@ -28,6 +28,15 @@ class Task extends HiveObject {
   @HiveField(7)
   String? description;
 
+  @HiveField(8)
+  int homeOrder;
+
+  @HiveField(9)
+  int completedAt;
+
+  @HiveField(10)
+  bool isFiled;
+
   Task({
     this.id,
     required this.queueId,
@@ -37,6 +46,9 @@ class Task extends HiveObject {
     this.isArchived = false,
     this.preferredOrder = 0,
     this.description,
+    this.homeOrder = -1,
+    this.completedAt = 0,
+    this.isFiled = false,
   });
 
   Task copyWith({
@@ -48,6 +60,9 @@ class Task extends HiveObject {
     bool? isArchived,
     int? preferredOrder,
     String? description,
+    int? homeOrder,
+    int? completedAt,
+    bool? isFiled,
   }) {
     return Task(
       id: id ?? this.id,
@@ -58,6 +73,9 @@ class Task extends HiveObject {
       isArchived: isArchived ?? this.isArchived,
       preferredOrder: preferredOrder ?? this.preferredOrder,
       description: description ?? this.description,
+      homeOrder: homeOrder ?? this.homeOrder,
+      completedAt: completedAt ?? this.completedAt,
+      isFiled: isFiled ?? this.isFiled,
     );
   }
 }

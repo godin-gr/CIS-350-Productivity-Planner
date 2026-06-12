@@ -24,6 +24,9 @@ class Queue extends HiveObject {
   @HiveField(5)
   String? description;
 
+  @HiveField(6)
+  int sortOrder;
+
   Queue({
     this.id,
     required this.name,
@@ -31,6 +34,7 @@ class Queue extends HiveObject {
     this.isComplete = false,
     this.orderModeIndex = 0,
     this.description,
+    this.sortOrder = 0,
   });
 
   OrderMode get orderMode => OrderMode.values[orderModeIndex];
@@ -43,6 +47,7 @@ class Queue extends HiveObject {
     bool? isComplete,
     int? orderModeIndex,
     String? description,
+    int? sortOrder,
   }) {
     return Queue(
       id: id ?? this.id,
@@ -51,6 +56,7 @@ class Queue extends HiveObject {
       isComplete: isComplete ?? this.isComplete,
       orderModeIndex: orderModeIndex ?? this.orderModeIndex,
       description: description ?? this.description,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }

@@ -28,20 +28,42 @@ class MyApp extends StatelessWidget {
       child: Consumer<SettingsController>(
         builder: (context, settings, _) {
           return MaterialApp(
+  debugShowCheckedModeBanner: false,
   title: 'Productivity Planner',
   theme: ThemeData(
+    brightness: settings.isDarkMode ? Brightness.dark : Brightness.light,
     colorScheme: ColorScheme.fromSeed(
       seedColor: settings.primaryColor,
+      brightness: settings.isDarkMode ? Brightness.dark : Brightness.light,
       background: settings.backgroundColor,
     ),
     scaffoldBackgroundColor: settings.backgroundColor,
-    textTheme: ThemeData().textTheme.apply(
+    cardColor: settings.backgroundColor,
+    cardTheme: CardThemeData(
+      color: settings.backgroundColor,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: settings.backgroundColor,
+    ),
+    textTheme: ThemeData(
+      brightness: settings.isDarkMode ? Brightness.dark : Brightness.light,
+    ).textTheme.apply(
       bodyColor: settings.textColor,
       displayColor: settings.textColor,
       decorationColor: settings.textColor,
     ),
     iconTheme: IconThemeData(color: settings.textColor),
   ),
+  builder: (context, child) {
+    // Apply the global font-size setting to all text.
+    final mq = MediaQuery.of(context);
+    return MediaQuery(
+      data: mq.copyWith(
+        textScaler: TextScaler.linear(settings.fontScale),
+      ),
+      child: child!,
+    );
+  },
   home: const MyHomePage(title: 'Productivity Planner'),
 );
         },

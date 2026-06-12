@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/queue_controller.dart';
+import '../controllers/task_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../database/database_helper.dart';
 import '../models/task_model.dart';
@@ -23,9 +24,16 @@ class _HomePageState extends State<HomePage> {
     super.didChangeDependencies();
     if (!_loaded) {
       _loaded = true;
+      _preferredMode = DatabaseHelper()
+          .getSetting('homePreferredMode', defaultValue: false) as bool;
       _loadStats();
       context.read<QueueController>().loadQueues();
     }
+  }
+
+  void _setPreferredMode(bool v) {
+    setState(() => _preferredMode = v);
+    DatabaseHelper().setSetting('homePreferredMode', v);
   }
 
   Future<void> _loadStats() async {
@@ -33,14 +41,38 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() => _allTasks = tasks);
   }
 
-  // Round-robin across queues: each queue's incomplete tasks in preferred
-  // order, then take the 1st of every queue, then the 2nd of every queue, etc.
+  Future<bool> _confirmReset(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset order?'),
+        content: const Text(
+            'Are you sure you want to reset the Preferred order? Your custom arrangement will be cleared and the default order restored.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  // The default interleave: round-robin across queues by preferred order.
+  // Completed-but-unfiled tasks stay in their natural preferred position (they
+  // are NOT pulled to the bottom — Remove Completed Tasks handles that). Filed
+  // tasks are excluded; they live in the Completed section.
   List<Task> _interleaveByQueue(List<Queue> queues) {
     final perQueue = <List<Task>>[];
     for (final q in queues) {
       final qTasks = _allTasks
           .where((t) =>
-              t.queueId == q.id && !t.isComplete && !t.isArchived)
+              t.queueId == q.id && !t.isArchived && !t.isFiled)
           .toList()
         ..sort((a, b) => a.preferredOrder.compareTo(b.preferredOrder));
       if (qTasks.isNotEmpty) perQueue.add(qTasks);
@@ -61,45 +93,103 @@ class _HomePageState extends State<HomePage> {
     return result;
   }
 
+  // The list shown in Preferred mode. If the user has set a custom home order
+  // (any task has homeOrder >= 0), respect it; otherwise fall back to the
+  // default interleave. Filed tasks are excluded.
+  List<Task> _combinedPreferred(List<Queue> queues) {
+    final activeIds = queues.map((q) => q.id).toSet();
+    final tasks = _allTasks
+        .where((t) =>
+            !t.isArchived && !t.isFiled && activeIds.contains(t.queueId))
+        .toList();
+    final hasCustom = tasks.any((t) => t.homeOrder >= 0);
+    if (!hasCustom) {
+      return _interleaveByQueue(queues);
+    }
+    // Tasks with a custom order sort by it; brand-new tasks (homeOrder < 0)
+    // float to the top.
+    tasks.sort((a, b) {
+      final ao = a.homeOrder < 0 ? -1 : a.homeOrder;
+      final bo = b.homeOrder < 0 ? -1 : b.homeOrder;
+      return ao.compareTo(bo);
+    });
+    return tasks;
+  }
+
   @override
   Widget build(BuildContext context) {
     final textColor = context.watch<SettingsController>().textColor;
-    final queues = context.watch<QueueController>().queues;
+    final allQueues = context.watch<QueueController>().queues;
+    // Active queues drive the home screen: not archived and not marked complete.
+    final queues = allQueues
+        .where((q) => !q.isArchived && !q.isComplete)
+        .toList();
+    final activeQueueIds = queues.map((q) => q.id).toSet();
+    // Queues marked complete (but not archived) — their tasks all count as done.
+    final completedQueueIds = allQueues
+        .where((q) => q.isComplete && !q.isArchived)
+        .map((q) => q.id)
+        .toSet();
     final queueNames = {for (final q in queues) q.id: q.name};
     final today = DateTime.now();
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-    final total = _allTasks.where((t) => !t.isArchived).length;
+    // Tasks that "count" as live work: not archived, and belonging to an
+    // active queue (not archived, not complete).
+    bool counts(Task t) => !t.isArchived && activeQueueIds.contains(t.queueId);
+
+    final toComplete =
+        _allTasks.where((t) => counts(t) && !t.isComplete).length;
     final dueToday = _allTasks
-        .where((t) => !t.isArchived && !t.isComplete && t.dueDate == todayStr)
+        .where((t) => counts(t) && !t.isComplete && t.dueDate == todayStr)
         .length;
     final pastDue = _allTasks
         .where((t) =>
-            !t.isArchived &&
+            counts(t) &&
             !t.isComplete &&
             t.dueDate != null &&
             t.dueDate!.compareTo(todayStr) < 0)
         .length;
-    final completed = _allTasks.where((t) => t.isComplete).length;
+    // Completed = every non-archived task that's marked complete, PLUS every
+    // non-archived task inside a completed queue (those count as done too).
+    final completed = _allTasks
+        .where((t) =>
+            !t.isArchived &&
+            (t.isComplete || completedQueueIds.contains(t.queueId)))
+        .length;
 
-    // Due Next: all incomplete, non-archived tasks with a due date, soonest
-    // first; tasks without due dates go at the bottom sorted by preferredOrder.
+    // Due Next: countable, incomplete tasks with a due date, soonest first;
+    // tasks without due dates next (by preferred order); completed-but-unfiled
+    // tasks last (newest-completed first). Filed tasks are excluded here.
     final withDue = _allTasks
-        .where((t) => !t.isComplete && !t.isArchived && t.dueDate != null)
+        .where((t) =>
+            counts(t) && !t.isComplete && !t.isFiled && t.dueDate != null)
         .toList()
       ..sort((a, b) => a.dueDate!.compareTo(b.dueDate!));
     final withoutDue = _allTasks
-        .where((t) => !t.isComplete && !t.isArchived && t.dueDate == null)
+        .where((t) =>
+            counts(t) && !t.isComplete && !t.isFiled && t.dueDate == null)
         .toList()
       ..sort((a, b) => a.preferredOrder.compareTo(b.preferredOrder));
-    final dueNext = [...withDue, ...withoutDue];
+    final doneTasks = _allTasks
+        .where((t) => counts(t) && t.isComplete && !t.isFiled)
+        .toList()
+      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    final dueNext = [...withDue, ...withoutDue, ...doneTasks];
 
-    // Preferred (interleaved): take each queue's tasks in preferred order, then
-    // round-robin across queues — T1, T3, T5, T2, T4, T6...
-    final combinedPreferred = _interleaveByQueue(queues);
+    // Preferred (interleaved by default, or custom home order if the user
+    // has dragged tasks around).
+    final combinedPreferred = _combinedPreferred(queues);
 
     final displayList = _preferredMode ? combinedPreferred : dueNext;
+
+    // Completed section: every filed task across active queues, newest first.
+    final filedList = _allTasks
+        .where((t) => counts(t) && t.isFiled)
+        .toList()
+      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    final hasCompleted = displayList.any((t) => t.isComplete);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -117,15 +207,23 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 24),
           Row(
             children: [
-              _StatCard(label: 'Total Tasks', value: '$total', icon: Icons.task),
+              _StatCard(
+                  label: 'Tasks To Complete',
+                  value: '$toComplete',
+                  icon: Icons.task),
               const SizedBox(width: 8),
-              _StatCard(label: 'Due Today', value: '$dueToday', icon: Icons.today),
+              _StatCard(
+                  label: 'Due Today',
+                  value: '$dueToday',
+                  icon: Icons.today,
+                  highlightColor: dueToday > 0 ? Colors.yellow.shade700 : null),
               const SizedBox(width: 8),
               _StatCard(
                   label: 'Past Due',
                   value: '$pastDue',
                   icon: Icons.warning_amber_rounded,
-                  highlight: pastDue > 0),
+                  highlightColor:
+                      pastDue > 0 ? Colors.red : null),
               const SizedBox(width: 8),
               _StatCard(
                   label: 'Completed',
@@ -142,28 +240,74 @@ class _HomePageState extends State<HomePage> {
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: textColor)),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                      value: false,
-                      label: Text('Due Next',
-                          style: TextStyle(fontSize: 12))),
-                  ButtonSegment(
-                      value: true,
-                      label: Text('Preferred',
-                          style: TextStyle(fontSize: 12))),
-                ],
-                selected: {_preferredMode},
-                onSelectionChanged: (s) =>
-                    setState(() => _preferredMode = s.first),
-                showSelectedIcon: false,
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
+              Builder(builder: (context) {
+                final primary = Theme.of(context).colorScheme.primary;
+                final onPrimary = Theme.of(context).colorScheme.onPrimary;
+                return SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                        value: false,
+                        label: Text('Due Next',
+                            style: TextStyle(fontSize: 12))),
+                    ButtonSegment(
+                        value: true,
+                        label: Text('Preferred',
+                            style: TextStyle(fontSize: 12))),
+                  ],
+                  selected: {_preferredMode},
+                  onSelectionChanged: (s) => _setPreferredMode(s.first),
+                  showSelectedIcon: false,
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor:
+                        WidgetStateProperty.resolveWith((states) {
+                      return states.contains(WidgetState.selected)
+                          ? primary
+                          : Colors.transparent;
+                    }),
+                    foregroundColor:
+                        WidgetStateProperty.resolveWith((states) {
+                      return states.contains(WidgetState.selected)
+                          ? onPrimary
+                          : primary;
+                    }),
+                  ),
+                );
+              }),
             ],
           ),
           const SizedBox(height: 8),
+          Row(
+            children: [
+              if (_preferredMode)
+                TextButton.icon(
+                  onPressed: displayList.isEmpty
+                      ? null
+                      : () async {
+                          final ok = await _confirmReset(context);
+                          if (!ok) return;
+                          await context
+                              .read<TaskController>()
+                              .resetHomeOrder();
+                          await _loadStats();
+                        },
+                  icon: const Icon(Icons.restart_alt, size: 18),
+                  label: const Text('Reset order'),
+                ),
+              const Spacer(),
+              if (hasCompleted)
+                TextButton.icon(
+                  onPressed: () async {
+                    await context
+                        .read<TaskController>()
+                        .fileCompletedAll();
+                    await _loadStats();
+                  },
+                  icon: const Icon(Icons.playlist_add_check, size: 18),
+                  label: const Text('Move Completed Tasks'),
+                ),
+            ],
+          ),
           if (displayList.isEmpty)
             Card(
               child: Padding(
@@ -172,11 +316,66 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(color: textColor.withOpacity(0.6))),
               ),
             )
+          else if (_preferredMode)
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: true,
+              onReorder: (oldIndex, newIndex) async {
+                if (newIndex > oldIndex) newIndex--;
+                final reordered = List<Task>.from(displayList);
+                final item = reordered.removeAt(oldIndex);
+                reordered.insert(newIndex, item);
+                await context
+                    .read<TaskController>()
+                    .saveHomeOrder(reordered);
+                await _loadStats();
+              },
+              children: [
+                for (final task in displayList)
+                  _DueNextCard(
+                    key: ValueKey(task.id),
+                    task: task,
+                    queueName: queueNames[task.queueId],
+                    onToggleComplete: () async {
+                      await context
+                          .read<TaskController>()
+                          .toggleComplete(task);
+                      await _loadStats();
+                    },
+                  ),
+              ],
+            )
           else
             ...displayList.map((task) => _DueNextCard(
                   task: task,
                   queueName: queueNames[task.queueId],
+                  onToggleComplete: () async {
+                    await context
+                        .read<TaskController>()
+                        .toggleComplete(task);
+                    await _loadStats();
+                  },
                 )),
+          if (filedList.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Completed',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: textColor.withOpacity(0.6))),
+            const SizedBox(height: 4),
+            ...filedList.map((task) => _DueNextCard(
+                  task: task,
+                  queueName: queueNames[task.queueId],
+                  onToggleComplete: () async {
+                    await context
+                        .read<TaskController>()
+                        .toggleComplete(task);
+                    await _loadStats();
+                  },
+                )),
+          ],
         ],
       ),
     );
@@ -187,37 +386,43 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final bool highlight;
+  final Color? highlightColor;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.icon,
-    this.highlight = false,
+    this.highlightColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    final settings = context.watch<SettingsController>();
+    final bg = settings.backgroundColor;
+    final textColor = settings.textColor;
+    final accent = highlightColor ?? textColor;
     return Expanded(
       child: Card(
-        color: primary,
+        color: bg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: textColor.withOpacity(0.15)),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Column(
             children: [
-              Icon(icon, color: highlight ? Colors.red : onPrimary),
+              Icon(icon, color: accent),
               const SizedBox(height: 4),
               Text(value,
                   style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: highlight ? Colors.red : onPrimary)),
+                      color: accent)),
               const SizedBox(height: 2),
               Text(label,
                   style: TextStyle(
-                      fontSize: 11, color: onPrimary.withOpacity(0.85)),
+                      fontSize: 11, color: textColor.withOpacity(0.7)),
                   textAlign: TextAlign.center),
             ],
           ),
@@ -230,7 +435,9 @@ class _StatCard extends StatelessWidget {
 class _DueNextCard extends StatelessWidget {
   final Task task;
   final String? queueName;
-  const _DueNextCard({required this.task, this.queueName});
+  final Future<void> Function()? onToggleComplete;
+  const _DueNextCard(
+      {super.key, required this.task, this.queueName, this.onToggleComplete});
 
   @override
   Widget build(BuildContext context) {
@@ -238,57 +445,92 @@ class _DueNextCard extends StatelessWidget {
     final today = DateTime.now();
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    final isPastDue =
-        task.dueDate != null && task.dueDate!.compareTo(todayStr) < 0;
+    final isPastDue = !task.isComplete &&
+        task.dueDate != null &&
+        task.dueDate!.compareTo(todayStr) < 0;
+    final isDueToday = !task.isComplete && task.dueDate == todayStr;
+    final Color dueColor = isPastDue
+        ? Colors.red
+        : isDueToday
+            ? Colors.yellow.shade700
+            : textColor.withOpacity(0.7);
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              task.title,
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: textColor),
+            IconButton(
+              icon: Icon(
+                task.isComplete
+                    ? Icons.check_circle
+                    : Icons.circle_outlined,
+                color: task.isComplete
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.primary,
+              ),
+              onPressed:
+                  onToggleComplete == null ? null : () => onToggleComplete!(),
             ),
-            if (queueName != null) ...[
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(Icons.list,
-                      size: 12, color: textColor.withOpacity(0.6)),
-                  const SizedBox(width: 4),
-                  Text(
-                    queueName!,
-                    style: TextStyle(
-                        fontSize: 12, color: textColor.withOpacity(0.6)),
-                  ),
-                ],
-              ),
-            ],
-            if (task.description != null && task.description!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                task.description!,
-                style: TextStyle(
-                    fontSize: 12, color: textColor.withOpacity(0.6)),
-              ),
-            ],
-            if (task.dueDate != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Due: ${task.dueDate}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isPastDue ? Colors.red : textColor.withOpacity(0.7),
-                  fontWeight:
-                      isPastDue ? FontWeight.bold : FontWeight.normal,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4, right: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                          decoration: task.isComplete
+                              ? TextDecoration.lineThrough
+                              : null),
+                    ),
+                    if (queueName != null) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.list,
+                              size: 12, color: textColor.withOpacity(0.6)),
+                          const SizedBox(width: 4),
+                          Text(
+                            queueName!,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: textColor.withOpacity(0.6)),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (task.description != null &&
+                        task.description!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        task.description!,
+                        style: TextStyle(
+                            fontSize: 12, color: textColor.withOpacity(0.6)),
+                      ),
+                    ],
+                    if (task.dueDate != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Due: ${task.dueDate}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: dueColor,
+                          fontWeight: (isPastDue || isDueToday)
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),

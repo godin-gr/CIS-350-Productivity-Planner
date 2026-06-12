@@ -16,9 +16,19 @@ class QueueController extends ChangeNotifier {
     final queue = Queue(
         name: name,
         orderModeIndex: orderMode.index,
-        description: description);
+        description: description,
+        sortOrder: queues.length);
     await _db.insertQueue(queue);
     loadQueues();
+  }
+
+  Future<void> reorderQueues(List<Queue> reordered) async {
+    for (int i = 0; i < reordered.length; i++) {
+      reordered[i].sortOrder = i;
+      await _db.updateQueue(reordered[i]);
+    }
+    queues = reordered;
+    notifyListeners();
   }
 
   Future<void> editQueue(Queue queue,

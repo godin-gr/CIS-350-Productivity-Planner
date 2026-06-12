@@ -25,13 +25,16 @@ class TaskAdapter extends TypeAdapter<Task> {
       isArchived: fields[5] as bool,
       preferredOrder: fields[6] as int,
       description: fields[7] as String?,
+      homeOrder: fields[8] as int,
+      completedAt: fields[9] as int,
+      isFiled: fields[10] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, Task obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +50,13 @@ class TaskAdapter extends TypeAdapter<Task> {
       ..writeByte(6)
       ..write(obj.preferredOrder)
       ..writeByte(7)
-      ..write(obj.description);
+      ..write(obj.description)
+      ..writeByte(8)
+      ..write(obj.homeOrder)
+      ..writeByte(9)
+      ..write(obj.completedAt)
+      ..writeByte(10)
+      ..write(obj.isFiled);
   }
 
   @override
