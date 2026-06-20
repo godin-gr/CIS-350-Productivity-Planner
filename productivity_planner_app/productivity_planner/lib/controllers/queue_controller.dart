@@ -12,7 +12,7 @@ class QueueController extends ChangeNotifier {
   }
 
   Future<void> createQueue(String name,
-      {OrderMode orderMode = OrderMode.preferred, String? description}) async {
+      {OrderMode orderMode = OrderMode.dueDate, String? description}) async {
     final queue = Queue(
         name: name,
         orderModeIndex: orderMode.index,
@@ -48,8 +48,27 @@ class QueueController extends ChangeNotifier {
     loadQueues();
   }
 
+  // Archive every queue currently in the Completed section
+  // (complete but not yet archived). Used by the Completed header button.
+  Future<void> archiveCompletedQueues() async {
+    final all = _db.getQueues(includeArchived: true);
+    for (final q in all) {
+      if (q.isComplete && !q.isArchived) {
+        q.isArchived = true;
+        await _db.updateQueue(q);
+      }
+    }
+    loadQueues();
+  }
+
   Future<void> toggleComplete(Queue queue) async {
     queue.isComplete = !queue.isComplete;
+    await _db.updateQueue(queue);
+    loadQueues();
+  }
+
+  Future<void> toggleHiddenFromHome(Queue queue) async {
+    queue.hiddenFromHome = !queue.hiddenFromHome;
     await _db.updateQueue(queue);
     loadQueues();
   }

@@ -27,14 +27,18 @@ class Queue extends HiveObject {
   @HiveField(6)
   int sortOrder;
 
+  @HiveField(7)
+  bool hiddenFromHome;
+
   Queue({
     this.id,
     required this.name,
     this.isArchived = false,
     this.isComplete = false,
-    this.orderModeIndex = 0,
+    this.orderModeIndex = 1,
     this.description,
     this.sortOrder = 0,
+    this.hiddenFromHome = false,
   });
 
   OrderMode get orderMode => OrderMode.values[orderModeIndex];
@@ -48,6 +52,7 @@ class Queue extends HiveObject {
     int? orderModeIndex,
     String? description,
     int? sortOrder,
+    bool? hiddenFromHome,
   }) {
     return Queue(
       id: id ?? this.id,
@@ -57,6 +62,7 @@ class Queue extends HiveObject {
       orderModeIndex: orderModeIndex ?? this.orderModeIndex,
       description: description ?? this.description,
       sortOrder: sortOrder ?? this.sortOrder,
+      hiddenFromHome: hiddenFromHome ?? this.hiddenFromHome,
     );
   }
 }

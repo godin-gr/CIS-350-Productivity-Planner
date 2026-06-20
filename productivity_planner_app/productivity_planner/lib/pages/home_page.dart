@@ -6,6 +6,7 @@ import '../controllers/settings_controller.dart';
 import '../database/database_helper.dart';
 import '../models/task_model.dart';
 import '../models/queue_model.dart';
+import '../utils/date_format.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -27,7 +28,12 @@ class _HomePageState extends State<HomePage> {
       _preferredMode = DatabaseHelper()
           .getSetting('homePreferredMode', defaultValue: false) as bool;
       _loadStats();
-      context.read<QueueController>().loadQueues();
+      // Defer the queue reload until after this build frame: loadQueues()
+      // notifies listeners, and calling it during build (this widget watches
+      // the controller) throws "setState() called during build".
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<QueueController>().loadQueues();
+      });
     }
   }
 
@@ -100,7 +106,9 @@ class _HomePageState extends State<HomePage> {
     final activeIds = queues.map((q) => q.id).toSet();
     final tasks = _allTasks
         .where((t) =>
-            !t.isArchived && !t.isFiled && activeIds.contains(t.queueId))
+            !t.isArchived &&
+            !t.isFiled &&
+            activeIds.contains(t.queueId))
         .toList();
     final hasCustom = tasks.any((t) => t.homeOrder >= 0);
     if (!hasCustom) {
@@ -122,14 +130,9 @@ class _HomePageState extends State<HomePage> {
     final allQueues = context.watch<QueueController>().queues;
     // Active queues drive the home screen: not archived and not marked complete.
     final queues = allQueues
-        .where((q) => !q.isArchived && !q.isComplete)
+        .where((q) => !q.isArchived && !q.isComplete && !q.hiddenFromHome)
         .toList();
     final activeQueueIds = queues.map((q) => q.id).toSet();
-    // Queues marked complete (but not archived) — their tasks all count as done.
-    final completedQueueIds = allQueues
-        .where((q) => q.isComplete && !q.isArchived)
-        .map((q) => q.id)
-        .toSet();
     final queueNames = {for (final q in queues) q.id: q.name};
     final today = DateTime.now();
     final todayStr =
@@ -151,32 +154,29 @@ class _HomePageState extends State<HomePage> {
             t.dueDate != null &&
             t.dueDate!.compareTo(todayStr) < 0)
         .length;
-    // Completed = every non-archived task that's marked complete, PLUS every
-    // non-archived task inside a completed queue (those count as done too).
-    final completed = _allTasks
-        .where((t) =>
-            !t.isArchived &&
-            (t.isComplete || completedQueueIds.contains(t.queueId)))
-        .length;
+    // Completed = every non-archived task that's marked complete. This is the
+    // exact set shown in the Completed section below, so the number and the
+    // visible list always match and can be counted by hand.
+    final completedTasks = _allTasks
+        .where((t) => !t.isArchived && t.isComplete)
+        .toList();
+    final completed = completedTasks.length;
 
-    // Due Next: countable, incomplete tasks with a due date, soonest first;
-    // tasks without due dates next (by preferred order); completed-but-unfiled
-    // tasks last (newest-completed first). Filed tasks are excluded here.
-    final withDue = _allTasks
-        .where((t) =>
-            counts(t) && !t.isComplete && !t.isFiled && t.dueDate != null)
+    // Due Next: all countable, unfiled tasks in one stable order — those with
+    // a due date first (soonest first), then those without (by preferred
+    // order). Completion does NOT change a task's position: a checked task
+    // stays exactly where it was until the user files it with the button.
+    final dueNext = _allTasks
+        .where((t) => counts(t) && !t.isFiled)
         .toList()
-      ..sort((a, b) => a.dueDate!.compareTo(b.dueDate!));
-    final withoutDue = _allTasks
-        .where((t) =>
-            counts(t) && !t.isComplete && !t.isFiled && t.dueDate == null)
-        .toList()
-      ..sort((a, b) => a.preferredOrder.compareTo(b.preferredOrder));
-    final doneTasks = _allTasks
-        .where((t) => counts(t) && t.isComplete && !t.isFiled)
-        .toList()
-      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-    final dueNext = [...withDue, ...withoutDue, ...doneTasks];
+      ..sort((a, b) {
+        final aHas = a.dueDate != null;
+        final bHas = b.dueDate != null;
+        if (aHas && bHas) return a.dueDate!.compareTo(b.dueDate!);
+        if (aHas) return -1; // tasks with a due date come first
+        if (bHas) return 1;
+        return a.preferredOrder.compareTo(b.preferredOrder);
+      });
 
     // Preferred (interleaved by default, or custom home order if the user
     // has dragged tasks around).
@@ -184,12 +184,15 @@ class _HomePageState extends State<HomePage> {
 
     final displayList = _preferredMode ? combinedPreferred : dueNext;
 
-    // Completed section: every filed task across active queues, newest first.
+    // Completed section: tasks the user has moved here via the button (filed),
+    // newest-completed first. Note this is a SUBSET of the Completed count —
+    // the count also includes completed-but-unfiled tasks still sitting inline.
     final filedList = _allTasks
         .where((t) => counts(t) && t.isFiled)
         .toList()
       ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-    final hasCompleted = displayList.any((t) => t.isComplete);
+    // Any completed-but-unfiled task currently inline can be moved down.
+    final hasCompleted = displayList.any((t) => t.isComplete && !t.isFiled);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -295,24 +298,25 @@ class _HomePageState extends State<HomePage> {
                   label: const Text('Reset order'),
                 ),
               const Spacer(),
-              if (hasCompleted)
-                TextButton.icon(
-                  onPressed: () async {
-                    await context
-                        .read<TaskController>()
-                        .fileCompletedAll();
-                    await _loadStats();
-                  },
-                  icon: const Icon(Icons.playlist_add_check, size: 18),
-                  label: const Text('Move Completed Tasks'),
-                ),
+              TextButton.icon(
+                onPressed: hasCompleted
+                    ? () async {
+                        await context
+                            .read<TaskController>()
+                            .fileCompletedAll();
+                        await _loadStats();
+                      }
+                    : null,
+                icon: const Icon(Icons.playlist_add_check, size: 18),
+                label: const Text('Move Completed Tasks'),
+              ),
             ],
           ),
           if (displayList.isEmpty)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text('No pending tasks.',
+                child: Text('Create a queue and add tasks to get started.',
                     style: TextStyle(color: textColor.withOpacity(0.6))),
               ),
             )
@@ -517,7 +521,7 @@ class _DueNextCard extends StatelessWidget {
                     if (task.dueDate != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Due: ${task.dueDate}',
+                        dueLabel(task.dueDate!),
                         style: TextStyle(
                           fontSize: 12,
                           color: dueColor,

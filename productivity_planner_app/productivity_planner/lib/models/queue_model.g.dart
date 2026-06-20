@@ -24,13 +24,14 @@ class QueueAdapter extends TypeAdapter<Queue> {
       orderModeIndex: fields[4] as int,
       description: fields[5] as String?,
       sortOrder: fields[6] as int,
+      hiddenFromHome: fields[7] as bool? ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, Queue obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class QueueAdapter extends TypeAdapter<Queue> {
       ..writeByte(5)
       ..write(obj.description)
       ..writeByte(6)
-      ..write(obj.sortOrder);
+      ..write(obj.sortOrder)
+      ..writeByte(7)
+      ..write(obj.hiddenFromHome);
   }
 
   @override

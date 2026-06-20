@@ -35,6 +35,27 @@ class BackupService {
     return file.path;
   }
 
+  /// Writes all data straight to the system Downloads folder (falling back to
+  /// the Documents folder if Downloads isn't available) and returns the full
+  /// path written, so the UI can tell the user where it went.
+  Future<String> saveToDownloads() async {
+    final data = _db.exportData();
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
+
+    Directory? dir = await getDownloadsDirectory();
+    dir ??= await getApplicationDocumentsDirectory();
+
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
+    final file =
+        File('${dir.path}/productivity_planner_backup_$stamp.json');
+    await file.writeAsString(jsonStr);
+    return file.path;
+  }
+
   /// Lets the user pick a previously-exported JSON file and replaces all local
   /// data with its contents. Returns true if an import happened, false if the
   /// user cancelled.

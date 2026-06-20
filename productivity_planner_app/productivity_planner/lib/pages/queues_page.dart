@@ -26,7 +26,6 @@ class _QueuesPageState extends State<QueuesPage> {
   void _showCreateDialog() {
     final nameController = TextEditingController();
     final descController = TextEditingController();
-    OrderMode selectedMode = OrderMode.preferred;
 
     showDialog(
       context: context,
@@ -49,31 +48,6 @@ class _QueuesPageState extends State<QueuesPage> {
                       labelText: 'Description (optional)'),
                   maxLines: 2,
                 ),
-                const SizedBox(height: 16),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Default order',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                ),
-                Row(
-                  children: [
-                    Radio<OrderMode>(
-                      value: OrderMode.preferred,
-                      groupValue: selectedMode,
-                      onChanged: (v) =>
-                          setDialogState(() => selectedMode = v!),
-                    ),
-                    const Text('Preferred'),
-                    const SizedBox(width: 16),
-                    Radio<OrderMode>(
-                      value: OrderMode.dueDate,
-                      groupValue: selectedMode,
-                      onChanged: (v) =>
-                          setDialogState(() => selectedMode = v!),
-                    ),
-                    const Text('Due date'),
-                  ],
-                ),
               ],
             ),
           ),
@@ -88,7 +62,6 @@ class _QueuesPageState extends State<QueuesPage> {
                 if (name.isNotEmpty) {
                   context.read<QueueController>().createQueue(
                         name,
-                        orderMode: selectedMode,
                         description: descController.text.trim().isEmpty
                             ? null
                             : descController.text.trim(),
@@ -108,7 +81,6 @@ class _QueuesPageState extends State<QueuesPage> {
     final nameController = TextEditingController(text: queue.name);
     final descController =
         TextEditingController(text: queue.description ?? '');
-    OrderMode selectedMode = queue.orderMode;
 
     showDialog(
       context: context,
@@ -131,31 +103,6 @@ class _QueuesPageState extends State<QueuesPage> {
                       labelText: 'Description (optional)'),
                   maxLines: 2,
                 ),
-                const SizedBox(height: 16),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Default order',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                ),
-                Row(
-                  children: [
-                    Radio<OrderMode>(
-                      value: OrderMode.preferred,
-                      groupValue: selectedMode,
-                      onChanged: (v) =>
-                          setDialogState(() => selectedMode = v!),
-                    ),
-                    const Text('Preferred'),
-                    const SizedBox(width: 16),
-                    Radio<OrderMode>(
-                      value: OrderMode.dueDate,
-                      groupValue: selectedMode,
-                      onChanged: (v) =>
-                          setDialogState(() => selectedMode = v!),
-                    ),
-                    const Text('Due date'),
-                  ],
-                ),
               ],
             ),
           ),
@@ -174,7 +121,7 @@ class _QueuesPageState extends State<QueuesPage> {
                         description: descController.text.trim().isEmpty
                             ? null
                             : descController.text.trim(),
-                        orderMode: selectedMode,
+                        orderMode: queue.orderMode,
                       );
                   Navigator.pop(context);
                 }
@@ -227,7 +174,14 @@ class _QueuesPageState extends State<QueuesPage> {
           Expanded(
             child: (activeQueues.isEmpty && completedQueues.isEmpty)
                 ? const Center(
-                    child: Text('No queues yet. Tap + to create one.'))
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Create a queue and add tasks to get started.\nTap + to make your first queue.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
                 : ListView(
                     padding: const EdgeInsets.only(bottom: 80),
                     children: [
@@ -269,11 +223,28 @@ class _QueuesPageState extends State<QueuesPage> {
                         Padding(
                           padding:
                               const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                          child: Text('Completed',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor.withOpacity(0.6))),
+                          child: Row(
+                            children: [
+                              Text('Completed',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor.withOpacity(0.6))),
+                              const Spacer(),
+                              if (completedQueues.any((q) => !q.isArchived))
+                                TextButton.icon(
+                                  onPressed: () {
+                                    context
+                                        .read<QueueController>()
+                                        .archiveCompletedQueues();
+                                  },
+                                  icon: const Icon(Icons.archive_outlined,
+                                      size: 16),
+                                  label: const Text('Archive all',
+                                      style: TextStyle(fontSize: 12)),
+                                ),
+                            ],
+                          ),
                         ),
                         const Divider(height: 1),
                         ...completedQueues.map((queue) => _QueueTile(
@@ -338,12 +309,15 @@ class _QueueTile extends StatelessWidget {
             Text(queue.description!,
                 style: TextStyle(
                     fontSize: 12, color: textColor.withOpacity(0.6))),
-          Text(
-            '${queue.orderMode == OrderMode.preferred ? 'Preferred' : 'Due date'} order'
-            '${queue.isArchived ? ' · Archived' : ''}'
-            '${queue.isComplete ? ' · Complete' : ''}',
-            style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7)),
-          ),
+          if (queue.isArchived || queue.isComplete || queue.hiddenFromHome)
+            Text(
+              [
+                if (queue.isArchived) 'Archived',
+                if (queue.isComplete) 'Complete',
+                if (queue.hiddenFromHome) 'Hidden from home',
+              ].join(' · '),
+              style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7)),
+            ),
         ],
       ),
       trailing: Row(
@@ -354,6 +328,9 @@ class _QueueTile extends StatelessWidget {
               switch (value) {
                 case 'edit':
                   onEdit();
+                  break;
+                case 'home':
+                  controller.toggleHiddenFromHome(queue);
                   break;
                 case 'complete':
                   controller.toggleComplete(queue);
@@ -372,6 +349,12 @@ class _QueueTile extends StatelessWidget {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'edit', child: Text('Edit')),
+              PopupMenuItem(
+                value: 'home',
+                child: Text(queue.hiddenFromHome
+                    ? 'Show on home'
+                    : 'Hide from home'),
+              ),
               PopupMenuItem(
                 value: 'complete',
                 child: Text(

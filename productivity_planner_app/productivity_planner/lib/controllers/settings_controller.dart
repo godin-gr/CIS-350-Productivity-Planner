@@ -87,4 +87,11 @@ class SettingsController extends ChangeNotifier {
     _db.setSetting('fontSize', v.index);
     notifyListeners();
   }
+
+  // Re-read all settings from storage (used after a full data reset, when the
+  // settings box has been cleared and values should revert to defaults).
+  void reload() {
+    _load();
+    notifyListeners();
+  }
 }

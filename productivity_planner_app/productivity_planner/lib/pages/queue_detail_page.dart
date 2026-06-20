@@ -5,6 +5,7 @@ import '../controllers/queue_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../models/queue_model.dart';
 import '../models/task_model.dart';
+import '../utils/date_format.dart';
 
 class QueueDetailPage extends StatefulWidget {
   final Queue queue;
@@ -247,81 +248,64 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
     final tasks = _sortedTasks(taskController.tasks);
     final filed = _filedTasks(taskController.tasks);
     final queue = widget.queue;
+    // Completed-but-unfiled tasks currently sitting in the active list; the
+    // "Move Completed Tasks" button only appears when there are some.
+    final hasCompletedToMove = tasks.any((t) => t.isComplete);
 
     return Scaffold(
       backgroundColor: settings.backgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(queue.name),
-        actions: [
-          IconButton(
-            tooltip: queue.isArchived ? 'Unarchive queue' : 'Archive queue',
-            icon: Icon(queue.isArchived
-                ? Icons.unarchive_outlined
-                : Icons.archive_outlined),
-            onPressed: () {
-              queueController.toggleArchive(queue);
-              Navigator.pop(context);
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            color: Theme.of(context).colorScheme.surfaceVariant,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Builder(builder: (context) {
-                  final primary = Theme.of(context).colorScheme.primary;
-                  final onPrimary = Theme.of(context).colorScheme.onPrimary;
-                  return SegmentedButton<OrderMode>(
-                    segments: const [
-                      ButtonSegment(
-                          value: OrderMode.preferred,
-                          label: Text('Preferred',
-                              style: TextStyle(fontSize: 12))),
-                      ButtonSegment(
-                          value: OrderMode.dueDate,
-                          label: Text('Due date',
-                              style: TextStyle(fontSize: 12))),
-                    ],
-                    selected: {queue.orderMode},
-                    onSelectionChanged: (s) {
-                      queueController.setOrderMode(queue, s.first);
-                      setState(() {});
-                    },
-                    showSelectedIcon: false,
-                    style: ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor:
-                          WidgetStateProperty.resolveWith((states) {
-                        return states.contains(WidgetState.selected)
-                            ? primary
-                            : Colors.transparent;
-                      }),
-                      foregroundColor:
-                          WidgetStateProperty.resolveWith((states) {
-                        return states.contains(WidgetState.selected)
-                            ? onPrimary
-                            : primary;
-                      }),
-                    ),
-                  );
-                }),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton.icon(
-                      onPressed: () {
-                        taskController.fileCompleted(queue.id!);
-                      },
-                      icon: const Icon(Icons.playlist_add_check, size: 18),
-                      label: const Text('Move Completed Tasks'),
-                    ),
-                    const Spacer(),
+                    Builder(builder: (context) {
+                      final primary = Theme.of(context).colorScheme.primary;
+                      final onPrimary =
+                          Theme.of(context).colorScheme.onPrimary;
+                      return SegmentedButton<OrderMode>(
+                        segments: const [
+                          ButtonSegment(
+                              value: OrderMode.dueDate,
+                              label: Text('Due Next',
+                                  style: TextStyle(fontSize: 12))),
+                          ButtonSegment(
+                              value: OrderMode.preferred,
+                              label: Text('Preferred',
+                                  style: TextStyle(fontSize: 12))),
+                        ],
+                        selected: {queue.orderMode},
+                        onSelectionChanged: (s) {
+                          queueController.setOrderMode(queue, s.first);
+                          setState(() {});
+                        },
+                        showSelectedIcon: false,
+                        style: ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor:
+                              WidgetStateProperty.resolveWith((states) {
+                            return states.contains(WidgetState.selected)
+                                ? primary
+                                : Colors.transparent;
+                          }),
+                          foregroundColor:
+                              WidgetStateProperty.resolveWith((states) {
+                            return states.contains(WidgetState.selected)
+                                ? onPrimary
+                                : primary;
+                          }),
+                        ),
+                      );
+                    }),
                     TextButton.icon(
                       onPressed: () {
                         setState(() => _showArchived = !_showArchived);
@@ -336,6 +320,21 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
                       label: Text(_showArchived
                           ? 'Hide archived'
                           : 'Show archived'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: hasCompletedToMove
+                          ? () {
+                              taskController.fileCompleted(queue.id!);
+                            }
+                          : null,
+                      icon: const Icon(Icons.playlist_add_check, size: 18),
+                      label: const Text('Move Completed Tasks'),
                     ),
                   ],
                 ),
@@ -384,13 +383,28 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
                         Padding(
                           padding:
                               const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                          child: Text(
-                            'Completed',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: settings.textColor.withOpacity(0.6),
-                            ),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Completed',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: settings.textColor.withOpacity(0.6),
+                                ),
+                              ),
+                              const Spacer(),
+                              if (filed.any((t) => !t.isArchived))
+                                TextButton.icon(
+                                  onPressed: () {
+                                    taskController.archiveFiled(queue.id!);
+                                  },
+                                  icon: const Icon(Icons.archive_outlined,
+                                      size: 16),
+                                  label: const Text('Archive all',
+                                      style: TextStyle(fontSize: 12)),
+                                ),
+                            ],
                           ),
                         ),
                         const Divider(height: 1),
@@ -449,7 +463,7 @@ class _TaskTile extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 12, color: textColor.withOpacity(0.6))),
           if (task.dueDate != null)
-            Text('Due: ${task.dueDate}',
+            Text(dueLabel(task.dueDate!),
                 style: TextStyle(
                     fontSize: 12, color: textColor.withOpacity(0.7))),
         ],

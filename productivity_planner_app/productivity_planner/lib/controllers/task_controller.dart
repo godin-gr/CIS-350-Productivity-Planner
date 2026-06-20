@@ -95,6 +95,20 @@ class TaskController extends ChangeNotifier {
     loadTasksForQueue(task.queueId);
   }
 
+  // Archive every task currently sitting in a queue's Completed section
+  // (i.e. completed + filed but not yet archived). Used by the Completed
+  // header's archive-all button.
+  Future<void> archiveFiled(int queueId) async {
+    final qTasks = _db.getTasksForQueue(queueId);
+    for (final t in qTasks) {
+      if (t.isFiled && !t.isArchived) {
+        t.isArchived = true;
+        await _db.updateTask(t);
+      }
+    }
+    loadTasksForQueue(queueId);
+  }
+
   Future<void> reorderTasks(List<Task> reordered) async {
     for (int i = 0; i < reordered.length; i++) {
       reordered[i].preferredOrder = i;

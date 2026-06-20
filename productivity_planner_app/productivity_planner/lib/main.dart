@@ -84,13 +84,16 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   AppPage currentPage = AppPage.home;
+  // Bumped each time the Home tab is selected so the HomePage rebuilds fresh
+  // and reloads its stats (counts, lists) from the database.
+  int _homeRefreshKey = 0;
 
   @override
   Widget build(BuildContext context) {
     Widget body;
     switch (currentPage) {
       case AppPage.home:
-        body = const HomePage();
+        body = HomePage(key: ValueKey('home_$_homeRefreshKey'));
         break;
       case AppPage.queues:
         body = const QueuesPage();
@@ -111,7 +114,10 @@ class _MyHomePageState extends State<MyHomePage> {
         currentIndex: AppPage.values.indexOf(currentPage),
         onTap: (index) {
           setState(() {
-            currentPage = AppPage.values[index];
+            final selected = AppPage.values[index];
+            // Re-enter Home fresh so its counts and lists are always current.
+            if (selected == AppPage.home) _homeRefreshKey++;
+            currentPage = selected;
           });
         },
         items: const [

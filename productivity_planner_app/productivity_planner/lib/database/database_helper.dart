@@ -91,6 +91,43 @@ class DatabaseHelper {
     await _tasks.delete(hiveKey);
   }
 
+  // Wipe everything: all queues, all tasks, and all settings. Used by the
+  // "Reset all data" option. Irreversible.
+  Future<void> resetAllData() async {
+    await _queues.clear();
+    await _tasks.clear();
+    await _settings.clear();
+  }
+
+  // Permanently delete everything that's been archived: archived tasks, plus
+  // archived queues and ALL of their tasks (archived or not). Returns the
+  // number of items removed (queues + tasks) so the UI can report it.
+  Future<int> deleteArchived() async {
+    var removed = 0;
+
+    // Archived queues: delete the queue and every task belonging to it.
+    final archivedQueueKeys = _queues.toMap().entries
+        .where((e) => e.value.isArchived)
+        .map((e) => e.key)
+        .toList();
+    final archivedQueueIds =
+        archivedQueueKeys.map((k) => k as int).toSet();
+
+    for (final task in _tasks.values.toList()) {
+      // Remove if the task itself is archived, or it belongs to an archived
+      // queue that's about to be deleted.
+      if (task.isArchived || archivedQueueIds.contains(task.queueId)) {
+        await task.delete();
+        removed++;
+      }
+    }
+    for (final key in archivedQueueKeys) {
+      await _queues.delete(key);
+      removed++;
+    }
+    return removed;
+  }
+
   // ---- Backup / restore ----------------------------------------------------
 
   // Serialize every queue and task into a plain map (JSON-encodable). Queues
@@ -106,6 +143,7 @@ class DatabaseHelper {
         'orderModeIndex': q.orderModeIndex,
         'description': q.description,
         'sortOrder': q.sortOrder,
+        'hiddenFromHome': q.hiddenFromHome,
       };
     }).toList();
 
@@ -151,6 +189,7 @@ class DatabaseHelper {
         orderModeIndex: (q['orderModeIndex'] as int?) ?? 0,
         description: q['description'] as String?,
         sortOrder: (q['sortOrder'] as int?) ?? 0,
+        hiddenFromHome: (q['hiddenFromHome'] as bool?) ?? false,
       );
       final newKey = await _queues.add(queue);
       queue.id = newKey;
