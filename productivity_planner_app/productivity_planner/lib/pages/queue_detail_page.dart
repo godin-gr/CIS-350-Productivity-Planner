@@ -7,7 +7,9 @@ import '../models/queue_model.dart';
 import '../models/task_model.dart';
 import '../utils/date_format.dart';
 
+/// Page that displays and manages the tasks inside a single queue.
 class QueueDetailPage extends StatefulWidget {
+  /// Queue whose tasks are shown on this page.
   final Queue queue;
 
   const QueueDetailPage({super.key, required this.queue});
@@ -16,7 +18,12 @@ class QueueDetailPage extends StatefulWidget {
   State<QueueDetailPage> createState() => _QueueDetailPageState();
 }
 
+/// State for [QueueDetailPage].
+///
+/// Handles loading tasks, showing create/edit dialogs, sorting tasks, and
+/// toggling whether archived tasks are visible.
 class _QueueDetailPageState extends State<QueueDetailPage> {
+  /// Whether archived tasks should be shown in this queue.
   bool _showArchived = false;
 
   @override
@@ -30,6 +37,7 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
     });
   }
 
+  /// Opens the dialog used to create a new task in this queue.
   void _showCreateTaskDialog() {
     final titleController = TextEditingController();
     final descController = TextEditingController();
@@ -120,6 +128,7 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
     );
   }
 
+  /// Opens the dialog used to edit an existing task.
   void _showEditTaskDialog(Task task) {
     final titleController = TextEditingController(text: task.title);
     final descController = TextEditingController(text: task.description ?? '');
@@ -212,12 +221,15 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
     );
   }
 
+  /// Formats a selected date into the app's stored date string format.
   String _formatDate(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   // Active list = tasks not yet filed into the Completed section. In Preferred
   // mode, completed tasks stay in their dragged position (Remove Completed
   // Tasks files them). In Due date mode they sort by date like everything else.
+
+  /// Returns the active tasks for this queue in the selected order mode.
   List<Task> _sortedTasks(List<Task> tasks) {
     final active = tasks.where((t) => !t.isFiled).toList();
     if (widget.queue.orderMode == OrderMode.dueDate) {
@@ -234,6 +246,8 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
   }
 
   // Tasks filed into the Completed section for this queue, newest first.
+
+  /// Returns filed completed tasks, sorted by newest completion time first.
   List<Task> _filedTasks(List<Task> tasks) {
     final filed = tasks.where((t) => t.isFiled).toList()
       ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
@@ -427,8 +441,12 @@ class _QueueDetailPageState extends State<QueueDetailPage> {
   }
 }
 
+/// List tile used to display a task inside a queue.
 class _TaskTile extends StatelessWidget {
+  /// Task displayed by this tile.
   final Task task;
+
+  /// Callback used when the user selects the edit action.
   final VoidCallback onEdit;
 
   const _TaskTile({super.key, required this.task, required this.onEdit});
@@ -504,7 +522,10 @@ class _TaskTile extends StatelessWidget {
     );
   }
 }
+
 // Shared confirmation dialog for destructive actions.
+
+/// Shows a confirmation dialog before running a destructive action.
 Future<void> _confirmDelete(
   BuildContext context, {
   required String title,

@@ -7,9 +7,12 @@ import 'package:share_plus/share_plus.dart';
 
 import 'database_helper.dart';
 
-/// Handles exporting the local database to a JSON file (shareable to another
-/// device) and importing one back in.
+/// Handles exporting the local database to a JSON file and importing it back in.
+///
+/// Backups can be shared to another device, saved to local storage, or restored
+/// by choosing a previously exported JSON file.
 class BackupService {
+  /// Local database helper used to export and import stored app data.
   final DatabaseHelper _db = DatabaseHelper();
 
   /// Writes all data to a timestamped JSON file in a temp directory and opens
@@ -35,9 +38,11 @@ class BackupService {
     return file.path;
   }
 
-  /// Writes all data straight to the system Downloads folder (falling back to
-  /// the Documents folder if Downloads isn't available) and returns the full
-  /// path written, so the UI can tell the user where it went.
+  /// Writes all data straight to the system Downloads folder, falling back to
+  /// the Documents folder if Downloads is not available.
+  ///
+  /// Returns the full path written so the UI can tell the user where the backup
+  /// file was saved.
   Future<String> saveToDownloads() async {
     final data = _db.exportData();
     final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
@@ -56,9 +61,10 @@ class BackupService {
     return file.path;
   }
 
-  /// Lets the user pick a previously-exported JSON file and replaces all local
-  /// data with its contents. Returns true if an import happened, false if the
-  /// user cancelled.
+  /// Lets the user pick a previously exported JSON file and imports its data.
+  ///
+  /// The selected backup replaces the current local data. Returns true if an
+  /// import happened, or false if the user cancelled or no usable file was found.
   Future<bool> importFromFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -69,6 +75,7 @@ class BackupService {
 
     final picked = result.files.single;
     String contents;
+
     if (picked.bytes != null) {
       contents = utf8.decode(picked.bytes!);
     } else if (picked.path != null) {

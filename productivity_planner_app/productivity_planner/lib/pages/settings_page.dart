@@ -5,6 +5,10 @@ import '../controllers/queue_controller.dart';
 import '../database/database_helper.dart';
 import '../database/backup_service.dart';
 
+/// Page that displays all user settings and data management actions.
+///
+/// This includes dark mode, font size, primary color, backup/import tools,
+/// deleting archived items, and resetting all local data.
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -143,6 +147,10 @@ class SettingsPage extends StatelessWidget {
   }
 
   // Confirmation before permanently deleting archived tasks and queues.
+
+  /// Confirms and permanently deletes archived queues and tasks.
+  ///
+  /// After deleting, the queue controller reloads so the UI reflects the change.
   Future<void> _deleteArchived(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
@@ -180,6 +188,10 @@ class SettingsPage extends StatelessWidget {
   }
 
   // Two-step confirmation before wiping everything.
+
+  /// Confirms twice and then permanently deletes all local app data.
+  ///
+  /// This clears queues, tasks, and settings, then reloads the controllers.
   Future<void> _resetAllData(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
 
@@ -236,6 +248,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  /// Opens the system share sheet with an exported backup file.
   Future<void> _exportData(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -247,6 +260,7 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
+  /// Saves an exported backup file to the device's Downloads folder.
   Future<void> _saveToDownloads(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -261,6 +275,9 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
+  /// Confirms and imports data from a selected backup file.
+  ///
+  /// Importing replaces the current queues and tasks with the backup contents.
   Future<void> _importData(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
@@ -300,6 +317,7 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
+  /// Converts a font size enum value into a display label.
   String _labelFor(AppFontSize size) {
     switch (size) {
       case AppFontSize.verySmall:
@@ -314,10 +332,18 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+/// Row of selectable color circles used by the Theme section.
 class _ColorPickerRow extends StatelessWidget {
+  /// Label displayed above the color options.
   final String label;
+
+  /// Currently selected color.
   final Color selected;
+
+  /// Available color choices.
   final List<Color> colors;
+
+  /// Callback used when the user selects a color.
   final ValueChanged<Color> onPicked;
 
   const _ColorPickerRow({

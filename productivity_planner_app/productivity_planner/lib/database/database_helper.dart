@@ -2,15 +2,30 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/queue_model.dart';
 import '../models/task_model.dart';
 
+/// Singleton helper for working with the local Hive database.
+///
+/// This class owns the app's queue, task, and settings boxes and provides
+/// methods for reading, writing, deleting, exporting, and importing data.
 class DatabaseHelper {
+  /// Single shared instance of the database helper.
   static final DatabaseHelper _instance = DatabaseHelper._internal();
+
+  /// Private constructor used by the singleton pattern.
   DatabaseHelper._internal();
+
+  /// Returns the shared database helper instance.
   factory DatabaseHelper() => _instance;
 
+  /// Hive box name for queue records.
   static const String _queueBox = 'queues';
+
+  /// Hive box name for task records.
   static const String _taskBox = 'tasks';
+
+  /// Hive box name for app settings.
   static const String _settingsBox = 'settings';
 
+  /// Initializes Hive, registers model adapters, and opens all app boxes.
   Future<void> init() async {
     await Hive.initFlutter();
     Hive.registerAdapter(QueueAdapter());
@@ -20,19 +35,33 @@ class DatabaseHelper {
     await Hive.openBox(_settingsBox);
   }
 
+  /// Queue storage box.
   Box<Queue> get _queues => Hive.box<Queue>(_queueBox);
+
+  /// Task storage box.
   Box<Task> get _tasks => Hive.box<Task>(_taskBox);
+
+  /// Settings storage box.
   Box get _settings => Hive.box(_settingsBox);
 
   // Settings operations (simple key/value).
+
+  /// Gets a saved setting by key.
+  ///
+  /// If the setting does not exist, [defaultValue] is returned instead.
   dynamic getSetting(String key, {dynamic defaultValue}) =>
       _settings.get(key, defaultValue: defaultValue);
 
+  /// Saves a setting value by key.
   Future<void> setSetting(String key, dynamic value) async {
     await _settings.put(key, value);
   }
 
   // Queue operations
+
+  /// Inserts a new queue into the database.
+  ///
+  /// The generated Hive key is stored back on the queue as its id.
   Future<int> insertQueue(Queue queue) async {
     final id = await _queues.add(queue);
     queue.id = id;
@@ -40,6 +69,10 @@ class DatabaseHelper {
     return id;
   }
 
+  /// Gets all queues from the database.
+  ///
+  /// Archived queues are excluded unless [includeArchived] is true. Queues are
+  /// returned in their saved sort order.
   List<Queue> getQueues({bool includeArchived = false}) {
     final list = _queues.values
         .where((q) => includeArchived || !q.isArchived)
@@ -48,10 +81,12 @@ class DatabaseHelper {
     return list;
   }
 
+  /// Saves changes to an existing queue.
   Future<void> updateQueue(Queue queue) async {
     await queue.save();
   }
 
+  /// Deletes a queue and all tasks that belong to it.
   Future<void> deleteQueue(int hiveKey) async {
     final tasksToDelete = _tasks.values
         .where((t) => t.queueId == hiveKey)
@@ -63,6 +98,10 @@ class DatabaseHelper {
   }
 
   // Task operations
+
+  /// Inserts a new task into the database.
+  ///
+  /// The generated Hive key is stored back on the task as its id.
   Future<int> insertTask(Task task) async {
     final id = await _tasks.add(task);
     task.id = id;
@@ -70,6 +109,9 @@ class DatabaseHelper {
     return id;
   }
 
+  /// Gets all tasks belonging to a specific queue.
+  ///
+  /// Archived tasks are excluded unless [includeArchived] is true.
   List<Task> getTasksForQueue(int queueId, {bool includeArchived = false}) {
     return _tasks.values
         .where((t) =>
@@ -77,22 +119,29 @@ class DatabaseHelper {
         .toList();
   }
 
+  /// Gets all tasks across every queue.
+  ///
+  /// Archived tasks are excluded unless [includeArchived] is true.
   List<Task> getAllTasks({bool includeArchived = false}) {
     return _tasks.values
         .where((t) => includeArchived || !t.isArchived)
         .toList();
   }
 
+  /// Saves changes to an existing task.
   Future<void> updateTask(Task task) async {
     await task.save();
   }
 
+  /// Deletes a task by its Hive key.
   Future<void> deleteTask(int hiveKey) async {
     await _tasks.delete(hiveKey);
   }
 
   // Wipe everything: all queues, all tasks, and all settings. Used by the
   // "Reset all data" option. Irreversible.
+
+  /// Permanently deletes all queues, tasks, and settings.
   Future<void> resetAllData() async {
     await _queues.clear();
     await _tasks.clear();
@@ -102,6 +151,11 @@ class DatabaseHelper {
   // Permanently delete everything that's been archived: archived tasks, plus
   // archived queues and ALL of their tasks (archived or not). Returns the
   // number of items removed (queues + tasks) so the UI can report it.
+
+  /// Permanently deletes archived queues and archived tasks.
+  ///
+  /// If a queue is archived, all of its tasks are also deleted. Returns the
+  /// total number of deleted queues and tasks.
   Future<int> deleteArchived() async {
     var removed = 0;
 
@@ -132,6 +186,11 @@ class DatabaseHelper {
 
   // Serialize every queue and task into a plain map (JSON-encodable). Queues
   // are keyed by their current Hive key so tasks can be re-linked on import.
+
+  /// Converts all queue and task data into a JSON-safe map.
+  ///
+  /// Queue keys are included so tasks can be matched back to their queues during
+  /// import.
   Map<String, dynamic> exportData() {
     final queueList = _queues.toMap().entries.map((e) {
       final q = e.value;
@@ -172,6 +231,11 @@ class DatabaseHelper {
 
   // Replace all current data with the contents of a previously-exported map.
   // Old queue keys are remapped to the new keys so tasks stay linked.
+
+  /// Replaces current queue and task data with imported backup data.
+  ///
+  /// Old queue keys from the backup are remapped to new Hive keys so imported
+  /// tasks stay connected to the correct imported queues.
   Future<void> importData(Map<String, dynamic> data) async {
     await _queues.clear();
     await _tasks.clear();

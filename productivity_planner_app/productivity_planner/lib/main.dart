@@ -4,16 +4,21 @@ import 'controllers/queue_controller.dart';
 import 'controllers/task_controller.dart';
 import 'controllers/settings_controller.dart';
 import 'database/database_helper.dart';
-import '../pages/home_page.dart';
+import '/pages/home_page.dart';
 import 'pages/queues_page.dart';
 import 'pages/settings_page.dart';
 
+/// Starts the app after making sure Flutter and the local database are ready.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseHelper().init();
   runApp(const MyApp());
 }
 
+/// Root widget for the Productivity Planner app.
+///
+/// Sets up the app-wide controllers and applies user settings such as theme,
+/// colors, and font size.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -72,20 +77,29 @@ class MyApp extends StatelessWidget {
   }
 }
 
+/// Pages available from the bottom navigation bar.
 enum AppPage { home, queues, settings }
 
+/// Main navigation shell for the app.
+///
+/// Displays the app bar, selected page content, and bottom navigation bar.
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
+
+  /// Title shown in the app bar.
   final String title;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
+/// Tracks the selected bottom navigation page.
 class _MyHomePageState extends State<MyHomePage> {
   AppPage currentPage = AppPage.home;
-  // Bumped each time the Home tab is selected so the HomePage rebuilds fresh
-  // and reloads its stats (counts, lists) from the database.
+
+  /// Forces the Home page to rebuild when the Home tab is selected again.
+  ///
+  /// This keeps task counts and lists up to date after changes made on other pages.
   int _homeRefreshKey = 0;
 
   @override

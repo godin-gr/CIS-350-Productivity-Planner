@@ -8,6 +8,10 @@ import '../models/task_model.dart';
 import '../models/queue_model.dart';
 import '../utils/date_format.dart';
 
+/// Home page showing the user's productivity summary.
+///
+/// Displays task counts, due today/past due totals, a combined task list, and
+/// completed tasks that have been moved into the Completed section.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -15,9 +19,20 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+/// State for [HomePage].
+///
+/// Loads task data, tracks the selected combined queue mode, and builds the
+/// filtered task lists shown on the Home page.
 class _HomePageState extends State<HomePage> {
+  /// All non-archived tasks currently loaded from the database.
   List<Task> _allTasks = [];
+
+  /// Prevents the initial data load from running more than once.
   bool _loaded = false;
+
+  /// Whether the Combined Queue is shown in Preferred mode.
+  ///
+  /// false = Due Next, true = Preferred/interleaved.
   bool _preferredMode = false; // false = Due Next, true = Preferred (interleaved)
 
   @override
@@ -37,16 +52,21 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// Updates and saves the selected Combined Queue display mode.
   void _setPreferredMode(bool v) {
     setState(() => _preferredMode = v);
     DatabaseHelper().setSetting('homePreferredMode', v);
   }
 
+  /// Reloads task data used by the Home page stats and lists.
   Future<void> _loadStats() async {
     final tasks = DatabaseHelper().getAllTasks();
     if (mounted) setState(() => _allTasks = tasks);
   }
 
+  /// Shows a confirmation dialog before resetting the Preferred order.
+  ///
+  /// Returns true if the user confirms the reset.
   Future<bool> _confirmReset(BuildContext context) async {
     final result = await showDialog<bool>(
       context: context,
@@ -73,6 +93,11 @@ class _HomePageState extends State<HomePage> {
   // Completed-but-unfiled tasks stay in their natural preferred position (they
   // are NOT pulled to the bottom — Remove Completed Tasks handles that). Filed
   // tasks are excluded; they live in the Completed section.
+
+  /// Creates the default Preferred task order.
+  ///
+  /// Tasks are pulled round-robin from each active queue based on each task's
+  /// preferred order.
   List<Task> _interleaveByQueue(List<Queue> queues) {
     final perQueue = <List<Task>>[];
     for (final q in queues) {
@@ -102,6 +127,11 @@ class _HomePageState extends State<HomePage> {
   // The list shown in Preferred mode. If the user has set a custom home order
   // (any task has homeOrder >= 0), respect it; otherwise fall back to the
   // default interleave. Filed tasks are excluded.
+
+  /// Builds the task list used when the Home page is in Preferred mode.
+  ///
+  /// If the user has manually reordered tasks on the Home page, that saved
+  /// order is used. Otherwise, tasks are interleaved by queue.
   List<Task> _combinedPreferred(List<Queue> queues) {
     final activeIds = queues.map((q) => q.id).toSet();
     final tasks = _allTasks
@@ -386,10 +416,18 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+/// Small summary card used for Home page statistics.
 class _StatCard extends StatelessWidget {
+  /// Label shown under the stat value.
   final String label;
+
+  /// Main stat value shown on the card.
   final String value;
+
+  /// Icon shown above the stat value.
   final IconData icon;
+
+  /// Optional color used to highlight important stats.
   final Color? highlightColor;
 
   const _StatCard({
@@ -436,10 +474,20 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+/// Task card used in the Home page combined queue.
+///
+/// Shows completion state, task title, optional queue name, description, and due
+/// date status.
 class _DueNextCard extends StatelessWidget {
+  /// Task displayed by this card.
   final Task task;
+
+  /// Optional name of the queue this task belongs to.
   final String? queueName;
+
+  /// Callback used when the task completion icon is tapped.
   final Future<void> Function()? onToggleComplete;
+
   const _DueNextCard(
       {super.key, required this.task, this.queueName, this.onToggleComplete});
 

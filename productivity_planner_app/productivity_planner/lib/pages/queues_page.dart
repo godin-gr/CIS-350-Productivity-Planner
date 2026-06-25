@@ -5,6 +5,7 @@ import '../controllers/settings_controller.dart';
 import '../models/queue_model.dart';
 import 'queue_detail_page.dart';
 
+/// Page that displays and manages the user's queues.
 class QueuesPage extends StatefulWidget {
   const QueuesPage({super.key});
 
@@ -12,7 +13,12 @@ class QueuesPage extends StatefulWidget {
   State<QueuesPage> createState() => _QueuesPageState();
 }
 
+/// State for [QueuesPage].
+///
+/// Handles loading queues, showing archived queues, creating queues, editing
+/// queues, and building the active and completed queue sections.
 class _QueuesPageState extends State<QueuesPage> {
+  /// Whether archived queues should be included in the list.
   bool _showArchived = false;
 
   @override
@@ -23,6 +29,7 @@ class _QueuesPageState extends State<QueuesPage> {
     });
   }
 
+  /// Opens the dialog used to create a new queue.
   void _showCreateDialog() {
     final nameController = TextEditingController();
     final descController = TextEditingController();
@@ -77,6 +84,7 @@ class _QueuesPageState extends State<QueuesPage> {
     );
   }
 
+  /// Opens the dialog used to edit an existing queue.
   void _showEditDialog(Queue queue) {
     final nameController = TextEditingController(text: queue.name);
     final descController =
@@ -276,10 +284,20 @@ class _QueuesPageState extends State<QueuesPage> {
   }
 }
 
+/// List tile used to display a queue.
 class _QueueTile extends StatelessWidget {
+  /// Queue displayed by this tile.
   final Queue queue;
+
+  /// Position of the queue in the reorderable active queue list.
+  ///
+  /// A value below 0 means the queue should not show a drag handle.
   final int index;
+
+  /// Callback used when the queue tile is tapped.
   final VoidCallback onTap;
+
+  /// Callback used when the user selects the edit action.
   final VoidCallback onEdit;
 
   const _QueueTile(
@@ -382,7 +400,10 @@ class _QueueTile extends StatelessWidget {
     );
   }
 }
+
 // Confirmation dialog before deleting a queue (and all its tasks).
+
+/// Shows a confirmation dialog before deleting a queue and its tasks.
 Future<void> _confirmDeleteQueue(
   BuildContext context, {
   required String queueName,
