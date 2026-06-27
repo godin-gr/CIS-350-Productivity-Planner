@@ -1,5 +1,9 @@
 # Productivity Planner
 
+**Jason Kamphuis & Gabrielle Godin**
+
+**Jira**: https://mail-team-pe717onf.atlassian.net/jira/software/projects/KAN/settings/access
+
 ## 1) Abstract
 
 Productivity Planner is a Flutter mobile application designed to help users organize tasks into separate queues. The app allows users to create queues, add tasks, set optional due dates, mark work as complete, and archive or delete old items. It also includes a combined home view that summarizes the user's current workload, showing tasks to complete, tasks due today, past-due tasks, and completed tasks.
@@ -626,7 +630,7 @@ This allows the app to display due dates consistently across the Home page and Q
 
 ---
 
-## 6) Installation and Running the Project
+## 6) Installation, Running, and Testing
 
 ### 6.1) Prerequisites
 
@@ -646,17 +650,44 @@ environment:
   sdk: ^3.12.1
 ```
 
-### 6.2) Install Dependencies
+If running the app as a Linux desktop application, Linux desktop support must also be enabled:
 
-From the project root, run:
+```bash
+flutter config --enable-linux-desktop
+```
+
+If Linux desktop dependencies are missing, install them with:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+```
+
+---
+
+### 6.2) Navigate to the Flutter Project
+
+From the repository root, move into the Flutter project folder:
+
+```bash
+cd productivity_planner_app/productivity_planner
+```
+
+---
+
+### 6.3) Install Dependencies
+
+Install the Flutter dependencies with:
 
 ```bash
 flutter pub get
 ```
 
-### 6.3) Generate Hive Adapter Files
+---
 
-The repository already includes generated adapter files:
+### 6.4) Generate Hive Adapter Files
+
+The repository already includes the generated Hive adapter files:
 
 ```text
 queue_model.g.dart
@@ -675,7 +706,9 @@ If there are conflicts with older generated files, use:
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-### 6.4) Run the App
+---
+
+### 6.5) Run the App
 
 To see available devices, run:
 
@@ -683,7 +716,13 @@ To see available devices, run:
 flutter devices
 ```
 
-To run on a connected device or emulator:
+To run the app as a Linux desktop application:
+
+```bash
+flutter run -d linux
+```
+
+To run the app on another connected device or emulator:
 
 ```bash
 flutter run
@@ -700,6 +739,64 @@ Then open:
 ```text
 http://localhost:8080
 ```
+
+---
+
+### 6.6) Run Unit Tests
+
+Unit tests are stored in the `unit_test/` folder. These tests cover models, utilities, controllers, database logic, backup behavior, and lightweight page-level behavior.
+
+Run all unit tests with:
+
+```bash
+flutter test unit_test/models unit_test/utils unit_test/controllers unit_test/database unit_test/pages --concurrency=1
+```
+
+---
+
+### 6.7) Run Integration Tests
+
+Integration tests are stored in the `integration_test/` folder. These tests launch the app and verify that major app navigation works correctly.
+
+Because the integration test runs the Linux desktop version of the app, it should be run with `xvfb-run` in WSL or other headless Linux environments.
+
+If `xvfb-run` is not installed, install it with:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y xvfb
+```
+
+Run the integration test with:
+
+```bash
+xvfb-run -a --server-args="-screen 0 1280x720x24" flutter test integration_test/app_navigation_test.dart -d linux
+```
+
+---
+
+### 6.8) Run All Tests Locally
+
+To run both unit and integration tests locally:
+
+```bash
+flutter test unit_test/models unit_test/utils unit_test/controllers unit_test/database unit_test/pages --concurrency=1
+xvfb-run -a --server-args="-screen 0 1280x720x24" flutter test integration_test/app_navigation_test.dart -d linux
+```
+
+---
+
+### 6.9) Continuous Integration
+
+This project uses GitHub Actions for continuous integration.
+
+The workflow runs automatically on:
+
+* pushes to `main`
+* pull requests into `main`
+* manual workflow dispatches
+
+The CI workflow runs the unit tests first. If the unit tests pass, it then runs the Linux integration test using `xvfb-run`.
 
 ---
 
@@ -723,7 +820,7 @@ The local Hive database was a good choice for this project because the app does 
 
 One area for future improvement would be cloud sync. This would allow users to access their tasks from multiple devices without manually exporting and importing files. Another improvement would be adding notifications for due dates, so users can receive reminders before tasks become overdue.
 
-Testing could also be expanded in the future. Unit tests for the controllers, database helper, and date-formatting utility would make the app more reliable as features are added.
+Testing was also expanded through unit tests and integration tests. The unit tests cover models, controllers, database behavior, backup behavior, settings behavior, and lightweight page-level behavior, while the integration test verifies that the main app launches and navigation works across the Home, Queues, and Settings pages.
 
 ---
 
