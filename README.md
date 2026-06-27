@@ -632,7 +632,7 @@ This allows the app to display due dates consistently across the Home page and Q
 
 ## 6) Installation, Running, and Testing
 
-### 6.1) Prerequisites
+### 6.1) Prerequisites (All Platforms)
 
 Before running the app, make sure Flutter is installed and working.
 
@@ -643,6 +643,11 @@ flutter --version
 flutter doctor
 ```
 
+`flutter doctor` reports what is installed and what is missing for each target
+platform. When you choose a platform in Section 6.4, the corresponding line in
+`flutter doctor` (for example, "Visual Studio - develop Windows apps" or
+"Android toolchain") must show a check mark before the app will run on it.
+
 The project uses the following Dart SDK constraint:
 
 ```yaml
@@ -650,18 +655,9 @@ environment:
   sdk: ^3.12.1
 ```
 
-If running the app as a Linux desktop application, Linux desktop support must also be enabled:
-
-```bash
-flutter config --enable-linux-desktop
-```
-
-If Linux desktop dependencies are missing, install them with:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
-```
+The app runs on **Windows desktop, Android, Linux desktop, and web**. The common
+setup steps (6.2–6.3) apply to every platform. The platform-specific
+requirements and run commands are in Section 6.4.
 
 ---
 
@@ -673,6 +669,10 @@ From the repository root, move into the Flutter project folder:
 cd productivity_planner_app/productivity_planner
 ```
 
+> Note: the Flutter project is not at the repository root. It lives in
+> `productivity_planner_app/productivity_planner`, and all `flutter` commands
+> below are run from inside that folder.
+
 ---
 
 ### 6.3) Install Dependencies
@@ -683,9 +683,7 @@ Install the Flutter dependencies with:
 flutter pub get
 ```
 
----
-
-### 6.4) Generate Hive Adapter Files
+#### Generate Hive Adapter Files (only if models change)
 
 The repository already includes the generated Hive adapter files:
 
@@ -694,7 +692,7 @@ queue_model.g.dart
 task_model.g.dart
 ```
 
-If the model files are changed, regenerate the adapters with:
+You only need to regenerate them if a model file is changed:
 
 ```bash
 dart run build_runner build
@@ -708,27 +706,88 @@ dart run build_runner build --delete-conflicting-outputs
 
 ---
 
-### 6.5) Run the App
+### 6.4) Run the App (Choose Your Platform)
 
-To see available devices, run:
+First, see which devices/targets are available:
 
 ```bash
 flutter devices
 ```
 
-To run the app as a Linux desktop application:
+Then follow the section for your platform below.
+
+#### 6.4.1) Windows Desktop
+
+**Requirement:** Visual Studio 2022 (the full IDE, not VS Code) with the
+**"Desktop development with C++"** workload installed. This provides the C++
+build toolchain Flutter uses to compile the native Windows runner. Leave the
+workload's default components selected. The **"Visual Studio - develop Windows
+apps"** line in `flutter doctor` must show a check mark.
+
+Enable Windows desktop support (one time):
 
 ```bash
-flutter run -d linux
+flutter config --enable-windows-desktop
 ```
 
-To run the app on another connected device or emulator:
+Run the app:
+
+```bash
+flutter run -d windows
+```
+
+#### 6.4.2) Android
+
+**Requirement:** Android Studio installed (it provides the Android SDK and
+platform tools). The **"Android toolchain"** line in `flutter doctor` must show
+a check mark. If it reports missing `cmdline-tools`, install **Android SDK
+Command-line Tools** via Android Studio → SDK Manager → SDK Tools.
+
+Accept the Android licenses once:
+
+```bash
+flutter doctor --android-licenses
+```
+
+Connect a device — either a physical phone with **USB debugging** enabled
+(Settings → Developer options), or a running emulator (Android Studio → Device
+Manager). Confirm it appears in `flutter devices`, then run:
 
 ```bash
 flutter run
 ```
 
-To run as a web app from WSL:
+If more than one device is connected, target a specific one using its id from
+`flutter devices`:
+
+```bash
+flutter run -d <device-id>
+```
+
+#### 6.4.3) Linux Desktop
+
+**Requirement:** the Linux desktop build dependencies. Install them with:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+```
+
+Enable Linux desktop support (one time):
+
+```bash
+flutter config --enable-linux-desktop
+```
+
+Run the app:
+
+```bash
+flutter run -d linux
+```
+
+#### 6.4.4) Web
+
+Run as a web app (for example, from WSL):
 
 ```bash
 flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
@@ -742,9 +801,11 @@ http://localhost:8080
 
 ---
 
-### 6.6) Run Unit Tests
+### 6.5) Run Unit Tests
 
-Unit tests are stored in the `unit_test/` folder. These tests cover models, utilities, controllers, database logic, backup behavior, and lightweight page-level behavior.
+Unit tests are stored in the `unit_test/` folder. These tests cover models,
+utilities, controllers, database logic, backup behavior, and lightweight
+page-level behavior.
 
 Run all unit tests with:
 
@@ -754,11 +815,13 @@ flutter test unit_test/models unit_test/utils unit_test/controllers unit_test/da
 
 ---
 
-### 6.7) Run Integration Tests
+### 6.6) Run Integration Tests
 
-Integration tests are stored in the `integration_test/` folder. These tests launch the app and verify that major app navigation works correctly.
+Integration tests are stored in the `integration_test/` folder. These tests
+launch the app and verify that major app navigation works correctly.
 
-Because the integration test runs the Linux desktop version of the app, it should be run with `xvfb-run` in WSL or other headless Linux environments.
+Because the integration test runs the Linux desktop version of the app, it
+should be run with `xvfb-run` in WSL or other headless Linux environments.
 
 If `xvfb-run` is not installed, install it with:
 
@@ -775,7 +838,7 @@ xvfb-run -a --server-args="-screen 0 1280x720x24" flutter test integration_test/
 
 ---
 
-### 6.8) Run All Tests Locally
+### 6.7) Run All Tests Locally
 
 To run both unit and integration tests locally:
 
@@ -786,7 +849,7 @@ xvfb-run -a --server-args="-screen 0 1280x720x24" flutter test integration_test/
 
 ---
 
-### 6.9) Continuous Integration
+### 6.8) Continuous Integration
 
 This project uses GitHub Actions for continuous integration.
 
@@ -796,7 +859,8 @@ The workflow runs automatically on:
 * pull requests into `main`
 * manual workflow dispatches
 
-The CI workflow runs the unit tests first. If the unit tests pass, it then runs the Linux integration test using `xvfb-run`.
+The CI workflow runs the unit tests first. If the unit tests pass, it then runs
+the Linux integration test using `xvfb-run`.
 
 ---
 
