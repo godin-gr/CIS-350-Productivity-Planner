@@ -898,7 +898,7 @@ Overall, Productivity Planner provides a practical and lightweight way for users
 
 ---
 
-## 9) Walkthrough
+## 9) Step-by-step Walkthrough
 
 ### 9.1) Create a Queue
 
@@ -986,3 +986,8 @@ The app updates the interface based on the selected settings.
 5. Confirm the final warning.
 
 The app clears all queues, tasks, and settings.
+
+## 10) Demo
+
+A video demonstration of the application is available here:
+[Demo Video](https://drive.google.com/file/d/1p_Gh43yAKYSSYf6sRq_7IS1L6wsxzesh/view?usp=sharing)
