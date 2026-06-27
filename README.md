@@ -2,7 +2,7 @@
 
 **Jason Kamphuis & Gabrielle Godin**
 
-**Jira**: https://mail-team-pe717onf.atlassian.net/jira/software/projects/KAN/settings/access
+**Jira**: [https://mail-team-pe717onf.atlassian.net/jira/software/projects/KAN/boards/2](https://mail-team-pe717onf.atlassian.net/jira/software/projects/KAN/boards/2)
 
 ## 1) Abstract
 
